@@ -26,6 +26,6 @@ crons = ["17 3 * * *"]
 [vars]
 OWNER_ID = "6936283002"                                   # your Telegram user id: always premium, can use /grant and ad commands
 PAGES_URL = "https://UnwantedBlue.github.io/quizbot" # where the mini app (miniapp/ folder) is published
-MINIAPP_SHORTNAME = ""                           # the short name you give the mini app in @BotFather (/newapp); leave empty until then
+MINIAPP_SHORTNAME = "workshop"                           # the short name you give the mini app in @BotFather (/newapp); leave empty until then
 PREMIUM_STARS = "100"                            # price of 30 days of premium, in Telegram Stars
 GEMINI_MODEL = "gemini-2.5-flash"
