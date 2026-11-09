@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encrypted backup</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  body { font: 16px/1.45 system-ui, sans-serif; margin: 0; padding: 18px; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); max-width: 480px; margin-inline: auto; }
+  input, button { width: 100%; padding: 12px; margin: 6px 0; border-radius: 10px; font: inherit; border: 1px solid #8884; box-sizing: border-box; }
+  button { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border: 0; }
+  .m { padding: 10px 12px; border-radius: 10px; margin-top: 10px; } .e { background: #fdecea; color: #8a1c14; } .o { background: #e6f4ea; color: #14532d; }
+  small { opacity: .7 }
+</style>
+</head>
+<body>
+<h2 id="h">🔐 Encrypted backup</h2>
+<p id="p"></p>
+<input id="pw" type="password" placeholder="Password" autocomplete="new-password">
+<input id="pw2" type="password" placeholder="Repeat password" autocomplete="new-password">
+<button id="go">Encrypt</button>
+<div id="msg"></div>
+<small>Everything happens in this page. The password never leaves your device; the bot only receives the encrypted file. If you forget the password, nobody can open the file.</small>
+<script>
+"use strict";
+const q = new URLSearchParams(location.search), mode = q.get("mode"), token = q.get("t"), api = (q.get("api") || "").replace(/\/$/, "");
+const $ = (i) => document.getElementById(i), enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const say = (t, ok) => { $("msg").className = "m " + (ok ? "o" : "e"); $("msg").textContent = t; };
+const ITER = 310000;
+async function key(pw, salt, iter) {
+  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function call(method, path, body) {
+  const r = await fetch(`${api}${path}?t=${encodeURIComponent(token)}`, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json(); if (!d.ok) throw new Error(d.error || "Failed"); return d;
+}
+if (mode === "decrypt") { $("h").textContent = "🔓 Restore encrypted backup"; $("p").textContent = "Type the password you used when you made the backup."; $("pw2").style.display = "none"; $("go").textContent = "Decrypt and restore"; }
+else $("p").textContent = "Choose a password for your backup (at least 8 characters).";
+$("go").onclick = async () => {
+  $("go").disabled = true; say("Working…", true);
+  try {
+    const pw = $("pw").value;
+    if (mode === "decrypt") {
+      const { file } = await call("GET", "/api/vault/cipher"), j = JSON.parse(file);
+      const k = await key(pw, unb64(j.salt), j.iter);
+      let plain; try { plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(j.iv) }, k, unb64(j.ct)); } catch { throw new Error("Wrong password, or the file is damaged."); }
+      await call("POST", "/api/vault/restore", { text: dec.decode(plain) });
+      say("✅ Restored. Check the chat with the bot.", true);
+    } else {
+      if (pw.length < 8) throw new Error("Use at least 8 characters.");
+      if (pw !== $("pw2").value) throw new Error("The two passwords are different.");
+      const { text } = await call("GET", "/api/vault/backup");
+      const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await key(pw, salt, ITER), enc.encode(text));
+      await call("POST", "/api/vault/send", { file: JSON.stringify({ qbk: 1, kdf: "PBKDF2-SHA256", iter: ITER, salt: b64(salt), iv: b64(iv), ct: b64(ct) }) });
+      say("✅ Done. The encrypted file is in your chat with the bot.", true);
+    }
+    if (window.Telegram && Telegram.WebApp) setTimeout(() => Telegram.WebApp.close(), 1800);
+  } catch (e) { say(e.message, false); $("go").disabled = false; }
+};
+</script>
+</body>
+</html>

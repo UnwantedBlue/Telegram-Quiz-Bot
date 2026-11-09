@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz questions</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="config.js"></script>
+<style>
+  :root { --bg: var(--tg-theme-bg-color, #fff); --fg: var(--tg-theme-text-color, #111); --hint: var(--tg-theme-hint-color, #777);
+          --link: var(--tg-theme-link-color, #2481cc); --btn: var(--tg-theme-button-color, #2481cc); --btnfg: var(--tg-theme-button-text-color, #fff);
+          --sec: var(--tg-theme-secondary-bg-color, #f1f1f4); --danger: #d93025; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  header { position: sticky; top: 0; background: var(--bg); padding: 10px 12px; border-bottom: 1px solid var(--sec); z-index: 2; }
+  h1 { font-size: 17px; margin: 0 0 8px; }
+  input[type=search], textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--sec); border-radius: 10px; background: var(--sec); color: var(--fg); font: inherit; }
+  textarea { min-height: 52vh; font: 13.5px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; white-space: pre; }
+  main { padding: 8px 12px 90px; }
+  .row { background: var(--sec); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+  .row .t { margin-bottom: 8px; word-break: break-word; }
+  .row .n { color: var(--hint); margin-right: 6px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { border: 0; border-radius: 10px; padding: 9px 14px; font: inherit; background: var(--btn); color: var(--btnfg); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--link); border: 1px solid var(--link); }
+  button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  button:disabled { opacity: .5; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin: 8px 0; }
+  .err { background: #fdecea; color: #8a1c14; } .ok { background: #e6f4ea; color: #14532d; }
+  .hint { color: var(--hint); font-size: 13px; }
+  .center { text-align: center; color: var(--hint); padding: 24px 0; }
+</style>
+</head>
+<body>
+<header><h1 id="title">Quiz questions</h1><div id="bar"></div></header>
+<main id="main"><div class="center">Loading…</div></main>
+<script>
+"use strict";
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const API = (window.QUIZBOT_API || "").replace(/\/$/, "");
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); kids.forEach((k) => e.append(k)); return e; };
+let quiz = null, term = "", timer = null, offset = 0;
+
+async function call(method, path, body) {
+  const res = await fetch(API + path, { method, headers: { authorization: "tma " + (tg ? tg.initData : ""), "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({ ok: false, error: "Bad answer from the server." }));
+  if (!data.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+const note = (text, cls = "err") => { const m = el("div", { className: "msg " + cls, textContent: text }); $("main").prepend(m); setTimeout(() => m.remove(), 6000); };
+const confirmBox = (text) => new Promise((ok) => (tg && tg.showConfirm ? tg.showConfirm(text, ok) : ok(confirm(text))));
+
+async function showQuizzes() {
+  quiz = null; $("title").textContent = "Choose a quiz"; $("bar").replaceChildren(); tg && tg.BackButton.hide();
+  try {
+    const { quizzes } = await call("GET", "/api/quizzes");
+    $("main").replaceChildren(...(quizzes.length ? quizzes.map((q) => el("div", { className: "row" }, el("div", { className: "t", textContent: q.name }),
+      el("div", { className: "actions" }, el("button", { textContent: `Open (${q.n} questions)`, onclick: () => openQuiz(q.id) })))) : [el("div", { className: "center", textContent: "You have no quizzes yet." })]));
+  } catch (e) { $("main").replaceChildren(el("div", { className: "msg err", textContent: e.message })); }
+}
+
+async function openQuiz(id, focusPos) {
+  quiz = { id }; term = ""; offset = 0;
+  const search = el("input", { type: "search", placeholder: "Search questions, options, explanations…", oninput: (e) => { term = e.target.value; clearTimeout(timer); timer = setTimeout(() => load(true), 300); } });
+  $("bar").replaceChildren(search);
+  if (tg) { tg.BackButton.show(); tg.BackButton.onClick(showQuizzes); }
+  await load(true);
+  if (focusPos) { try { const d = await call("GET", `/api/quiz/${id}/questions?offset=${focusPos - 1}`); if (d.items[0]) edit(d.items[0]); } catch (e) { note(e.message); } }
+}
+
+async function load(reset) {
+  if (reset) offset = 0;
+  const main = $("main");
+  try {
+    const d = await call("GET", `/api/quiz/${quiz.id}/questions?q=${encodeURIComponent(term)}&offset=${offset}`);
+    quiz.name = d.quiz.name; $("title").textContent = `${d.quiz.name} · ${d.quiz.n} questions`;
+    const rows = d.items.map(rowFor);
+    if (reset) main.replaceChildren(); else main.querySelector(".more")?.remove();
+    if (!rows.length && reset) main.append(el("div", { className: "center", textContent: term ? "No question matches your search." : "This quiz has no questions." }));
+    rows.forEach((r) => main.append(r));
+    if (d.more) { offset += 30; main.append(el("div", { className: "more center" }, el("button", { className: "ghost", textContent: "Load more", onclick: () => load(false) }))); }
+  } catch (e) { main.replaceChildren(el("div", { className: "msg err", textContent: e.message })); }
+}
+
+function rowFor(item) {
+  return el("div", { className: "row", id: "q" + item.id },
+    el("div", { className: "t" }, el("span", { className: "n", textContent: "#" + item.pos }), item.text + (item.hasMedia ? "  🖼" : "")),
+    el("div", { className: "actions" }, el("button", { textContent: "✏️ Edit / replace", onclick: () => edit(item) }), el("button", { className: "danger", textContent: "🗑 Delete", onclick: () => del(item) })));
+}
+
+async function del(item) {
+  if (!(await confirmBox(`Delete question #${item.pos}? I will send it back to you in the chat so you can restore it.`))) return;
+  try { await call("DELETE", `/api/quiz/${quiz.id}/question/${item.id}`); note("Deleted. The question was sent to your chat.", "ok"); await load(true); }
+  catch (e) { note(e.message); }
+}
+
+function edit(item) {
+  const ta = el("textarea", { value: item.format, spellcheck: false });
+  const save = el("button", { textContent: "💾 Save (replace)", onclick: async () => {
+    save.disabled = true;
+    try { await call("PUT", `/api/quiz/${quiz.id}/question/${item.id}`, { text: ta.value }); note("Saved.", "ok"); await load(true); }
+    catch (e) { note(e.message); save.disabled = false; }
+  } });
+  const poll = el("button", { className: "ghost", textContent: "📊 Replace with a poll", onclick: async () => {
+    try { await call("POST", `/api/quiz/${quiz.id}/question/${item.id}/poll`); if (tg) tg.close(); else note("Go back to the chat and send the poll.", "ok"); }
+    catch (e) { note(e.message); }
+  } });
+  const back = el("button", { className: "ghost", textContent: "Cancel", onclick: () => load(true) });
+  $("main").replaceChildren(
+    el("div", { className: "hint", textContent: `Question #${item.pos}. Same format as in the bot: + question, // description, * correct option, = explanation, :seconds. A line “++” above it keeps the picture/video.` }),
+    ta, el("div", { className: "actions", style: "margin-top:10px" }, save, poll, back));
+}
+
+(async function start() {
+  if (!tg || !tg.initData) { $("main").replaceChildren(el("div", { className: "msg err", textContent: "Open this page from the bot inside Telegram." })); return; }
+  const p = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  const m = p && p.match(/^([a-z0-9]+)(?:_(\d+))?$/);
+  if (m) return openQuiz(m[1], m[2] ? Number(m[2]) : 0);
+  const q = new URLSearchParams(location.search).get("quiz");
+  if (q) return openQuiz(q);
+  return showQuizzes();
+})();
+</script>
+</body>
+</html>

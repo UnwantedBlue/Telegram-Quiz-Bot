@@ -1,0 +1,49 @@
++What is the capital of France?
+//A warm-up question (this line is the description shown above the poll)
+London
+Berlin
+*Paris
+Madrid
+=Paris is the capital and largest city of France.
+:20
++Which blood vessel carries oxygenated blood?
+Pulmonary artery
+*Aorta
+Vena cava
+Right ventricle
+=The aorta carries oxygen-rich blood from the left ventricle to the body.
+The pulmonary artery is the exception: it carries oxygen-poor blood to the lungs.
++Which of these are prime numbers? (two correct answers = multi-select)
+*2
+4
+*7
+9
+:1-30
++Which of these animals are mammals? (no explanation, no time of its own)
+Dolphin
+Bat
+Platypus
+*All of the above
++What is the usual charge of a sodium ion? (options starting with + need a backslash)
+\+2
+*+1
+-1
+0
+=Sodium gives away one electron, so it becomes Na+ with a charge of +1.
+++
++Name this bone (the ++ line above means: I will ask you for a picture afterwards)
+Femur
+*Tibia
+Humerus
++A 58-year-old man comes to the emergency department with sudden crushing chest pain that spreads to his left arm and jaw, together with sweating, nausea and shortness of breath that started 40 minutes ago. He is a long-term smoker with untreated high blood pressure. His ECG shows ST-segment elevation in leads II, III and aVF. Which coronary artery is most likely blocked? (long question test)
+Left anterior descending artery
+*Right coronary artery
+Left circumflex artery
+Left main coronary artery
+=Leads II, III and aVF look at the inferior wall of the heart, which the right coronary artery usually supplies.
+:0
++Which statement about haemoglobin is correct? (long option test)
+*It binds oxygen at its heme iron, and its oxygen affinity falls when blood CO2 and acidity rise (the Bohr effect), which helps tissues unload oxygen
+It is made mainly in the liver and stored inside platelets
+Each molecule binds exactly one oxygen molecule
+Fetal haemoglobin has a lower oxygen affinity than adult haemoglobin

@@ -1,0 +1,14 @@
+{
+  "name": "quizbot-cloud",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --import ./tests/register.mjs --test tests/",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply quizbot --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

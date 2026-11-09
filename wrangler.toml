@@ -1,0 +1,31 @@
+name = "quizbot"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# --- D1 (free SQLite): create it once in the Cloudflare dashboard (Storage & databases -> D1 -> Create),
+#     name it "quizbot", then paste its ID below.
+[[d1_databases]]
+binding = "DB"
+database_name = "quizbot"
+database_id = "697ce600-46b3-4c29-b0dc-5bf1674e4226"
+migrations_dir = "migrations"
+
+# --- Durable Object: one per running quiz (timers via alarms). SQLite-backed = allowed on the free plan.
+[[durable_objects.bindings]]
+name = "RUN"
+class_name = "QuizRun"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QuizRun"]
+
+# --- daily cleanup (free plan allows cron triggers)
+[triggers]
+crons = ["17 3 * * *"]
+
+[vars]
+OWNER_ID = "6936283002"                                   # your Telegram user id: always premium, can use /grant and ad commands
+PAGES_URL = "https://YOURNAME.github.io/quizbot" # where the mini app (miniapp/ folder) is published
+MINIAPP_SHORTNAME = ""                           # the short name you give the mini app in @BotFather (/newapp); leave empty until then
+PREMIUM_STARS = "100"                            # price of 30 days of premium, in Telegram Stars
+GEMINI_MODEL = "gemini-2.5-flash"
